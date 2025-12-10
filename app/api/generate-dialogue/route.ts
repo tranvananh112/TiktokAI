@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { saveDialogueHistory } from "@/lib/dialogue-tracker"
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "AIzaSyBkicFyAsv-olgokEl0eIN5Xbetdz2eho0")
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
