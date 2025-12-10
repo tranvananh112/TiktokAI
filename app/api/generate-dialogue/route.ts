@@ -1,5 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { saveDialogueHistory } from "@/lib/dialogue-tracker"
+import {
+  analyzeProduct,
+  generateSmartDialogueStrategy,
+  generateSmartDialogue,
+  type ProductAnalysis
+} from "@/lib/smart-product-analyzer"
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "AIzaSyApuSv-1qoB5HlYD9LKBtQDf1AmjSvfr6w")
 
@@ -100,56 +106,67 @@ export async function POST(request: Request) {
   const usedConcepts = new Set<string>()
   const usedOpenings = new Set<string>()
 
+  // 🧠 PHÂN TÍCH THÔNG MINH SẢN PHẨM
+  console.log("🔍 Analyzing product with smart system...")
+  const productAnalysis = analyzeProduct(productName, productDescription)
+  const smartStrategy = generateSmartDialogueStrategy(productAnalysis, productName)
+
+  console.log("📊 Product Analysis:", {
+    category: productAnalysis.category,
+    targetAudience: productAnalysis.targetAudience[0],
+    keyBenefits: productAnalysis.keyBenefits.slice(0, 2),
+    marketTrend: productAnalysis.marketTrend
+  })
+
+  // 🔬 NGHIÊN CỨU SÂU VỚI AI
   let productInsights = ""
   try {
-    const researchPrompt = `Bạn là chuyên gia nghiên cứu sản phẩm với khả năng truy xuất dữ liệu từ Gemini AI. Hãy nghiên cứu SÂU về sản phẩm:
+    const enhancedResearchPrompt = `Bạn là chuyên gia phân tích sản phẩm với AI thông minh. Dựa trên phân tích ban đầu, hãy nghiên cứu SÂU hơn:
 
-**TÊN SẢN PHẨM:** ${productName}
-**MÔ TẢ CƠ BẢN:** ${productDescription}
+**SẢN PHẨM:** ${productName}
+**MÔ TẢ:** ${productDescription}
 
-**NHIỆM VỤ NGHIÊN CỨU:**
-1. Truy xuất thông tin chi tiết từ cơ sở dữ liệu Gemini về sản phẩm này
-2. Phân tích đặc điểm, công dụng, thành phần thực tế
-3. Tìm hiểu xu hướng thị trường, đánh giá người dùng
-4. Khám phá các góc nhìn mới, lợi ích ẩn của sản phẩm
+**PHÂN TÍCH THÔNG MINH ĐÃ CÓ:**
+- Danh mục: ${productAnalysis.category}
+- Đối tượng: ${productAnalysis.targetAudience.join(', ')}
+- Lợi ích chính: ${productAnalysis.keyBenefits.join(', ')}
+- Pain Points: ${productAnalysis.painPoints.join(', ')}
+- Cảm xúc: ${productAnalysis.emotionalTriggers.join(', ')}
+- Xu hướng: ${productAnalysis.marketTrend}
 
-**THÔNG TIN CẦN TRẢ VỀ:**
+**NGHIÊN CỨU CHUYÊN SÂU THÊM:**
 
-**NGHIÊN CỨU CHUYÊN SÂU:**
-- Công dụng chính và lợi ích nổi bật (dựa trên dữ liệu thực tế)
-- Thành phần/công nghệ/chất liệu quan trọng
-- Cơ chế hoạt động, nguyên lý khoa học (nếu có)
-- Kết quả nghiên cứu, chứng nhận (nếu có)
+🔬 **PHÂN TÍCH KỸ THUẬT:**
+- Thành phần/công nghệ/chất liệu cụ thể
+- Cơ chế hoạt động, nguyên lý khoa học
+- Tiêu chuẩn chất lượng, chứng nhận
 
-**PHÂN TÍCH THỊ TRƯỜNG:**
-- Đối tượng khách hàng chính và phụ
-- Xu hướng sử dụng hiện tại
-- So sánh với đối thủ cạnh tranh
-- Điểm khác biệt độc đáo
+🎯 **INSIGHT MARKETING:**
+- Điểm khác biệt so với đối thủ
+- Lý do khách hàng nên chọn SẢN PHẨM NÀY
+- Timing tốt nhất để mua (theo mùa/xu hướng)
 
-**INSIGHT SÁNG TẠO:**
+💡 **SÁNG TẠO NỘI DUNG:**
+- Góc nhìn mới lạ về sản phẩm
 - Cách sử dụng sáng tạo, mẹo hay
-- Lợi ích ẩn mà ít người biết
-- Câu chuyện thương hiệu, nguồn gốc
-- Từ khóa marketing hấp dẫn, trending
+- Câu chuyện thương hiệu hấp dẫn
+- Từ khóa trending, viral
 
-**GÓC NHÌN NGƯỜI DÙNG:**
-- Trải nghiệm thực tế của khách hàng
-- Vấn đề sản phẩm giải quyết
-- Cảm xúc, tâm lý khi sử dụng
-- Lý do nên mua ngay hôm nay
+👥 **TÂM LÝ KHÁCH HÀNG:**
+- Nỗi lo/mong muốn của ${productAnalysis.targetAudience[0]}
+- Cảm xúc khi sử dụng sản phẩm
+- Lý do thúc đẩy mua ngay
 
-**QUY TẮC:**
-- Dựa trên dữ liệu có thật từ Gemini AI
-- Viết ngắn gọn, súc tích, dễ hiểu
-- Tập trung vào thông tin HỮU ÍCH cho việc tạo nội dung
-- Tổng cộng 250-300 từ
-- KHÔNG lặp lại mô tả gốc của người dùng`
+**YÊU CẦU:**
+- Tập trung vào thông tin THỰC TẾ, HỮU ÍCH
+- Viết ngắn gọn, dễ hiểu cho việc tạo script
+- 200-250 từ
+- Không lặp lại thông tin đã có`
 
-    productInsights = await generateWithRetry(researchPrompt)
+    productInsights = await generateWithRetry(enhancedResearchPrompt)
   } catch (error) {
     console.error("Error researching product:", error)
-    productInsights = `Sản phẩm ${productName} với các đặc điểm nổi bật cần được nghiên cứu thêm để tạo nội dung chất lượng.`
+    productInsights = `Sản phẩm ${productName} thuộc danh mục ${productAnalysis.category}, phù hợp với ${productAnalysis.targetAudience[0]}, mang lại lợi ích ${productAnalysis.keyBenefits[0]} và giải quyết vấn đề ${productAnalysis.painPoints[0]}.`
   }
 
   // Danh sách góc độ và câu mở đầu đa dạng
@@ -188,13 +205,24 @@ export async function POST(request: Request) {
     // Tạo danh sách các đoạn thoại đã tạo trong phiên này
     const currentDialogues = dialogues.map(d => d.dialogue).join('\n---\n')
 
-    const prompt = `Bạn là chuyên gia viết kịch bản TikTok Shop. Tạo đoạn thoại số ${i + 1}/${count} HOÀN TOÀN KHÁC BIỆT với các đoạn trước.
+    const prompt = `Bạn là chuyên gia viết kịch bản TikTok Shop với AI thông minh. Tạo đoạn thoại số ${i + 1}/${count} HOÀN TOÀN KHÁC BIỆT.
 
-**THÔNG TIN SẢN PHẨM:**
+**🎯 THÔNG TIN SẢN PHẨM:**
 - Tên: ${productName}
-- Nghiên cứu: ${productInsights}
+- Danh mục: ${productAnalysis.category}
+- Đối tượng: ${productAnalysis.targetAudience[0]}
 ${price ? `- Giá: ${price}` : ""}
 ${promotionText ? `- Ưu đãi: ${promotionText}` : ""}
+
+**🧠 PHÂN TÍCH THÔNG MINH:**
+- Lợi ích chính: ${productAnalysis.keyBenefits.slice(0, 3).join(', ')}
+- Vấn đề giải quyết: ${productAnalysis.painPoints.slice(0, 2).join(', ')}
+- Cảm xúc mục tiêu: ${productAnalysis.emotionalTriggers.slice(0, 2).join(', ')}
+- Xu hướng thị trường: ${productAnalysis.marketTrend}
+- Lợi thế cạnh tranh: ${productAnalysis.competitiveAdvantages.slice(0, 2).join(', ')}
+
+**🔬 NGHIÊN CỨU CHUYÊN SÂU:**
+${productInsights}
 
 **TRÁNH SAO CHÉP MÔ TẢ GỐC:**
 "${productDescription}"
@@ -202,12 +230,20 @@ ${promotionText ? `- Ưu đãi: ${promotionText}` : ""}
 **CÁC ĐOẠN THOẠI ĐÃ TẠO (TUYỆT ĐỐI KHÔNG ĐƯỢC GIỐNG):**
 ${currentDialogues || "Chưa có đoạn nào"}
 
-**YÊU CẦU KHÁC BIỆT HOÀN TOÀN:**
+**🎬 CHIẾN LƯỢC THÔNG MINH:**
+- **Hook**: ${smartStrategy.hook}
+- **Vấn đề**: ${smartStrategy.problemStatement}
+- **Giải pháp**: ${smartStrategy.solutionPresentation}
+- **Kết nối cảm xúc**: ${smartStrategy.emotionalConnection}
+- **Tạo cấp bách**: ${smartStrategy.urgencyFactor}
+
+**📝 YÊU CẦU KHÁC BIỆT:**
 1. ${genderContext}
 2. Độ dài: ${targetWords} từ (${duration} giây)
 3. ${categoryPrompts[category]}
 4. **Góc độ**: ${selectedAngle} - ${getAngleDefinition(selectedAngle)}
 5. **Bắt đầu bằng**: "${selectedOpening}"
+6. **Tập trung vào**: ${productAnalysis.keyBenefits[i % productAnalysis.keyBenefits.length]}
 
 **NGUYÊN TẮC KHÁC BIỆT TUYỆT ĐỐI:**
 🚫 **KHÔNG ĐƯỢC:**
@@ -222,10 +258,18 @@ ${currentDialogues || "Chưa có đoạn nào"}
 - Từ ngữ và phong cách RIÊNG BIỆT
 - Trải nghiệm/tình huống KHÁC với các đoạn trước
 
-**PHONG CÁCH TIKTOK VIRAL:**
+**🔥 PHONG CÁCH TIKTOK VIRAL:**
 - Bắt đầu bằng: "${selectedOpening}"
 - Từ trending: "viral", "trending", "hot hit", "must try", "game changer"
 - Tương tác: "Comment nếu...", "Tag ai cần biết", "Ai đồng ý?"
+- Cảm xúc mục tiêu: Tạo cảm giác "${productAnalysis.emotionalTriggers[0]}" cho người xem
+- Pain point: Nhắc đến "${productAnalysis.painPoints[0]}" một cách tự nhiên
+
+**💡 SỬ DỤNG THÔNG TIN THÔNG MINH:**
+- Nhấn mạnh lợi ích: "${productAnalysis.keyBenefits[0]}"
+- Đối tượng: Nói chuyện trực tiếp với "${productAnalysis.targetAudience[0]}"
+- Lợi thế: Nhắc đến "${productAnalysis.competitiveAdvantages[0]}"
+- Xu hướng: Kết hợp với "${productAnalysis.marketTrend}"
 
 **TIKTOK SHOP CTA (chọn 1 cách KHÁC với các đoạn trước):**
 - "Mua ngay tại giỏ hàng TikTok Shop góc dưới!"
@@ -301,6 +345,24 @@ Tạo đoạn thoại ĐỘCĐÁO, KHÔNG TRÙNG LẶP!`
     diversityInfo: {
       conceptsUsed: Array.from(usedConcepts),
       openingsUsed: Array.from(usedOpenings)
+    },
+    smartAnalysis: {
+      category: productAnalysis.category,
+      targetAudience: productAnalysis.targetAudience,
+      keyBenefits: productAnalysis.keyBenefits,
+      painPoints: productAnalysis.painPoints,
+      emotionalTriggers: productAnalysis.emotionalTriggers,
+      marketTrend: productAnalysis.marketTrend,
+      priceRange: productAnalysis.priceRange,
+      competitiveAdvantages: productAnalysis.competitiveAdvantages
+    },
+    strategy: {
+      hook: smartStrategy.hook,
+      problemStatement: smartStrategy.problemStatement,
+      solutionPresentation: smartStrategy.solutionPresentation,
+      emotionalConnection: smartStrategy.emotionalConnection,
+      callToAction: smartStrategy.callToAction,
+      urgencyFactor: smartStrategy.urgencyFactor
     }
   })
 }
