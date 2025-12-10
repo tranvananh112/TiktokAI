@@ -1,11 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { saveDialogueHistory } from "@/lib/dialogue-tracker"
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "AIzaSyApuSv-1qoB5HlYD9LKBtQDf1AmjSvfr6w")
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const MODELS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]
 
 // Hàm định nghĩa các góc độ sáng tạo khác nhau
 function getAngleDefinition(angle: string): string {

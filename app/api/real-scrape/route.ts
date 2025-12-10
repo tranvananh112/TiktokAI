@@ -3,7 +3,7 @@ import * as cheerio from "cheerio"
 import axios from "axios"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "AIzaSyApuSv-1qoB5HlYD9LKBtQDf1AmjSvfr6w")
 
 interface ScrapedProduct {
     name: string
@@ -99,7 +99,7 @@ async function scrapeProducts(productName: string): Promise<ScrapedProduct[]> {
 // Hàm tạo mô tả từ dữ liệu đã scrape
 async function generateDescriptionFromScrapedData(productName: string, scrapedProducts: ScrapedProduct[]): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
 
         const productList = scrapedProducts.map(p =>
             `- ${p.name} (${p.price}) từ ${p.source}`
