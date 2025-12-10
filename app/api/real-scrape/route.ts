@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server"
-import puppeteer from "puppeteer"
 import * as cheerio from "cheerio"
 import axios from "axios"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "AIzaSyBkicFyAsv-olgokEl0eIN5Xbetdz2eho0")
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!)
 
 interface ScrapedProduct {
     name: string
@@ -43,98 +42,13 @@ const SCRAPE_CONFIGS = [
     }
 ]
 
-// Hàm scrape với Puppeteer
-async function scrapeWithPuppeteer(productName: string): Promise<ScrapedProduct[]> {
-    let browser = null
-    const results: ScrapedProduct[] = []
-
-    try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu'
-            ]
-        })
-
-        const page = await browser.newPage()
-
-        // Set user agent để tránh bị block
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
-
-        // Set viewport
-        await page.setViewport({ width: 1366, height: 768 })
-
-        for (const config of SCRAPE_CONFIGS) {
-            try {
-                console.log(`Scraping ${config.name} for: ${productName}`)
-
-                await page.goto(config.searchUrl(productName), {
-                    waitUntil: 'networkidle2',
-                    timeout: 30000
-                })
-
-                // Đợi một chút để trang load
-                await page.waitForTimeout(2000)
-
-                const products = await page.evaluate((selectors, maxResults, sourceName) => {
-                    const items = document.querySelectorAll(selectors.productCards)
-                    const results = []
-
-                    for (let i = 0; i < Math.min(items.length, maxResults); i++) {
-                        const item = items[i]
-
-                        const titleEl = item.querySelector(selectors.title)
-                        const priceEl = item.querySelector(selectors.price)
-                        const linkEl = item.querySelector(selectors.link)
-
-                        if (titleEl) {
-                            results.push({
-                                name: titleEl.textContent?.trim() || '',
-                                price: priceEl?.textContent?.trim() || '',
-                                description: '',
-                                features: [],
-                                source: sourceName,
-                                url: linkEl?.href || ''
-                            })
-                        }
-                    }
-
-                    return results
-                }, config.selectors, config.maxResults, config.name)
-
-                results.push(...products)
-
-                console.log(`Found ${products.length} products from ${config.name}`)
-
-            } catch (error) {
-                console.error(`Error scraping ${config.name}:`, error)
-            }
-        }
-
-    } catch (error) {
-        console.error('Puppeteer error:', error)
-    } finally {
-        if (browser) {
-            await browser.close()
-        }
-    }
-
-    return results
-}
-
-// Hàm scrape với Axios + Cheerio (fallback)
-async function scrapeWithAxios(productName: string): Promise<ScrapedProduct[]> {
+// Hàm scrape với Axios + Cheerio (chính)
+async function scrapeProducts(productName: string): Promise<ScrapedProduct[]> {
     const results: ScrapedProduct[] = []
 
     for (const config of SCRAPE_CONFIGS) {
         try {
-            console.log(`Scraping ${config.name} with Axios for: ${productName}`)
+            console.log(`Scraping ${config.name} for: ${productName}`)
 
             const response = await axios.get(config.searchUrl(productName), {
                 headers: {
@@ -173,12 +87,14 @@ async function scrapeWithAxios(productName: string): Promise<ScrapedProduct[]> {
             console.log(`Found ${products.length} products from ${config.name}`)
 
         } catch (error) {
-            console.error(`Error scraping ${config.name} with Axios:`, error)
+            console.error(`Error scraping ${config.name}:`, error)
         }
     }
 
     return results
 }
+
+
 
 // Hàm tạo mô tả từ dữ liệu đã scrape
 async function generateDescriptionFromScrapedData(productName: string, scrapedProducts: ScrapedProduct[]): Promise<string> {
@@ -271,14 +187,8 @@ export async function POST(request: NextRequest) {
 
         console.log(`Starting real scraping for: ${productName}`)
 
-        // Thử scrape với Puppeteer trước
-        let scrapedProducts = await scrapeWithPuppeteer(productName.trim())
-
-        // Nếu không có kết quả, thử với Axios
-        if (scrapedProducts.length === 0) {
-            console.log("Puppeteer failed, trying Axios...")
-            scrapedProducts = await scrapeWithAxios(productName.trim())
-        }
+        // Scrape với Axios + Cheerio
+        const scrapedProducts = await scrapeProducts(productName.trim())
 
         // Tạo mô tả từ dữ liệu đã scrape
         const description = await generateDescriptionFromScrapedData(productName, scrapedProducts)
@@ -290,7 +200,7 @@ export async function POST(request: NextRequest) {
             totalFound: scrapedProducts.length,
             sources: [...new Set(scrapedProducts.map(p => p.source))],
             timestamp: new Date().toISOString(),
-            method: scrapedProducts.length > 0 ? 'real-scraping' : 'fallback'
+            method: 'axios-cheerio'
         })
 
     } catch (error: any) {
